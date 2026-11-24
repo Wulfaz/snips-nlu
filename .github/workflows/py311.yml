@@ -45,11 +45,15 @@ jobs:
           python -m pip install -e . "mock>=2.0,<6" "checksumdir~=1.1.6"
           python -m pip list | grep -i -E "numpy|scipy|scikit|crfsuite|snips|future"
 
+      # Gazetteer entities were hosted on resources.snips.ai, which is gone; the
+      # mirror (__entities_download_url__) only has the French music entities.
+      # pynab only uses snips/datetime, a grammar entity built into the parser.
       - name: Download language resources (as pynab does, with current pip)
         run: |
           python -m snips_nlu download-all-languages
-          python -m snips_nlu download-language-entities fr
-          python -m snips_nlu download-language-entities en
+          for entity in snips/musicAlbum snips/musicArtist snips/musicTrack; do
+            python -m snips_nlu download-entity $entity fr
+          done
 
       - name: Unit tests
         run: python -m unittest discover -s snips_nlu/tests -t .
