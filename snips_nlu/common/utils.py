@@ -138,10 +138,15 @@ def is_package(name):
         bool: True if an installed packaged corresponds to this name, False
             otherwise.
     """
-    import pkg_resources
-
     name = name.lower().replace("-", "_")
-    packages = pkg_resources.working_set.by_key.keys()
+    try:
+        from importlib.metadata import distributions
+    except ImportError:  # Python < 3.8
+        import pkg_resources
+        packages = pkg_resources.working_set.by_key.keys()
+    else:
+        # setuptools >= 81 no longer ships pkg_resources
+        packages = (dist.metadata["Name"] or "" for dist in distributions())
     for package in packages:
         if package.lower().replace("-", "_") == name:
             return True
