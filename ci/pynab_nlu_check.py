@@ -12,8 +12,9 @@ import sys
 
 from snips_nlu import SnipsNLUEngine
 
-TODAY = datetime.datetime.strftime(
-    datetime.datetime.now(), "%Y-%m-%d 00:00:00 +00:00")
+# The datetime slot carries the local UTC offset ("+01:00" in Paris), so only
+# the date and time part is compared (pynab's test assumes UTC).
+TODAY = datetime.datetime.strftime(datetime.datetime.now(), "%Y-%m-%d 00:00:00")
 
 # (sentence, expected intent or None, expected "date" slot or absent/None)
 CASES = {
@@ -58,7 +59,7 @@ def main(engine_dirs):
             if ok and intent is not None and date == "absent":
                 ok = "date" not in result
             elif ok and date not in (None, "absent"):
-                ok = result.get("date") == date
+                ok = (result.get("date") or "").startswith(date + " ")
             failures += not ok
             print("%s [%s] %r -> %r" % ("OK  " if ok else "FAIL", lang, sentence, result))
     if failures:
