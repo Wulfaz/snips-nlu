@@ -9,7 +9,7 @@ on:
 env:
   # Rust-based dependencies, built from source on x86_64
   SNIPS_NLU_UTILS: "snips-nlu-utils @ git+https://github.com/Wulfaz/snips-nlu-utils@v0.9.1.post1#subdirectory=python"
-  SNIPS_NLU_PARSERS: "snips-nlu-parsers @ git+https://github.com/Wulfaz/snips-nlu-parsers@v0.4.3.post1#subdirectory=python"
+  SNIPS_NLU_PARSERS: "snips-nlu-parsers @ git+https://github.com/Wulfaz/snips-nlu-parsers@py3-wheels#subdirectory=python"
   LANG: en_US.UTF-8
   PYTHONIOENCODING: UTF-8
 
@@ -43,6 +43,7 @@ jobs:
         run: |
           [ -z "${{ matrix.pins }}" ] || python -m pip install ${{ matrix.pins }}
           python -m pip install -e . "mock>=2.0,<6" "checksumdir~=1.1.6"
+          python -m pip install --no-deps "snips-nlu-metrics>=0.14.1,<0.15"
           python -m pip list | grep -i -E "numpy|scipy|scikit|crfsuite|snips|future"
 
       # Gazetteer entities were hosted on resources.snips.ai, which is gone; the
