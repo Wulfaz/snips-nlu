@@ -37,6 +37,26 @@ LOG_REG_ARGS = {
 }
 
 
+def _sklearn_version():
+    import re
+
+    import sklearn
+
+    return tuple(int(n) for n in re.findall(r"\d+", sklearn.__version__)[:2])
+
+
+def _log_reg_args():
+    """SGDClassifier arguments for the installed scikit-learn
+
+    The logistic loss was renamed from "log" to "log_loss" in scikit-learn 1.1
+    and "log" was removed in 1.3.
+    """
+    args = dict(LOG_REG_ARGS)
+    if _sklearn_version() >= (1, 1):
+        args["loss"] = "log_loss"
+    return args
+
+
 @IntentClassifier.register("log_reg_intent_classifier")
 class LogRegIntentClassifier(IntentClassifier):
     """Intent classifier which uses a Logistic Regression underneath"""
@@ -64,6 +84,7 @@ class LogRegIntentClassifier(IntentClassifier):
         Returns:
             :class:`LogRegIntentClassifier`: The same instance, trained
         """
+        import numpy as np
         from sklearn.linear_model import SGDClassifier
         from sklearn.utils import compute_class_weight
 
@@ -104,14 +125,14 @@ class LogRegIntentClassifier(IntentClassifier):
         alpha = get_regularization_factor(dataset)
 
         class_weights_arr = compute_class_weight(
-            "balanced", range(none_class + 1), classes)
+            "balanced", classes=np.arange(none_class + 1), y=classes)
         # Re-weight the noise class
         class_weights_arr[-1] *= self.config.noise_reweight_factor
         class_weight = {idx: w for idx, w in enumerate(class_weights_arr)}
 
         self.classifier = SGDClassifier(
             random_state=self.random_state, alpha=alpha,
-            class_weight=class_weight, **LOG_REG_ARGS)
+            class_weight=class_weight, **_log_reg_args())
         self.classifier.fit(x, classes)
         logger.debug("%s", DifferedLoggingMessage(self.log_best_features))
         return self
@@ -181,8 +202,6 @@ class LogRegIntentClassifier(IntentClassifier):
 
     def _predict_proba(self, X):  # pylint: disable=C0103
         import numpy as np
-
-        self.classifier._check_proba()  # pylint: disable=W0212
 
         prob = self.classifier.decision_function(X)
         prob *= -1
@@ -257,7 +276,7 @@ class LogRegIntentClassifier(IntentClassifier):
         intercept = model_dict['intercept']
         t_ = model_dict["t_"]
         if coeffs is not None and intercept is not None:
-            sgd_classifier = SGDClassifier(**LOG_REG_ARGS)
+            sgd_classifier = SGDClassifier(**_log_reg_args())
             sgd_classifier.coef_ = np.array(coeffs)
             sgd_classifier.intercept_ = np.array(intercept)
             sgd_classifier.t_ = t_

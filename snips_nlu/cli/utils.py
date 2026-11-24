@@ -99,11 +99,25 @@ def get_resources_version(resource_fullname, resource_alias, compatibility):
     return compatibility[resource_fullname][0]
 
 
+def _pip_requirement(download_url):
+    """Turn 'url#egg=name==version' into a 'name @ url' direct reference
+
+    pip >= 25 rejects version specifiers in '#egg=' fragments, while PEP 508
+    direct references are supported by every pip since 19.
+    """
+    url, sep, fragment = download_url.partition("#egg=")
+    if not sep:
+        return download_url
+    name = fragment.split("==")[0]
+    return "%s @ %s" % (name, url)
+
+
 def install_remote_package(download_url, user_pip_args=None):
     pip_args = ['--no-cache-dir', '--no-deps']
     if user_pip_args:
         pip_args.extend(user_pip_args)
-    cmd = [sys.executable, '-m', 'pip', 'install'] + pip_args + [download_url]
+    cmd = [sys.executable, '-m', 'pip', 'install'] + pip_args + [
+        _pip_requirement(download_url)]
     exit_code = subprocess.call(cmd, env=os.environ.copy())
     # Don't forget to invalidate caches after dynamically installing modules
     # https://docs.python.org/3/library/importlib.html#importlib.import_module

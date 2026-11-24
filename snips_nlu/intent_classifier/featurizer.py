@@ -428,7 +428,7 @@ class TfidfVectorizer(ProcessingUnit):
         Returns:
             :class:`.TfidfVectorizer`: The vectorizer with limited vocabulary
         """
-        import scipy.sparse as sp
+        import numpy as np
 
         ngrams = set(ngrams)
         vocab = self.vocabulary
@@ -444,15 +444,11 @@ class TfidfVectorizer(ProcessingUnit):
         self._tfidf_vectorizer.vocabulary_ = {
             ng: new_i for new_i, ng in enumerate(new_ngrams)
         }
-        # pylint: disable=protected-access
-        # The new_idf_data is valid because the previous _idf_diag was indexed
-        # with sorted ngrams and new_index is also indexed with sorted ngrams
-        new_idf_data = self._tfidf_vectorizer._tfidf._idf_diag.data[
-            list(new_index)]
-        self._tfidf_vectorizer._tfidf._idf_diag = sp.spdiags(
-            new_idf_data, diags=0, m=len(new_index), n=len(new_index),
-            format="csr")
-        # pylint: enable=protected-access
+        # The new idf values are valid because the previous idf vector was
+        # indexed with sorted ngrams and new_index is also indexed with sorted
+        # ngrams
+        new_idf = np.asarray(self._tfidf_vectorizer.idf_)[list(new_index)]
+        _set_tfidf_idf(self._tfidf_vectorizer._tfidf, new_idf)
         return self
 
     @property
@@ -502,8 +498,6 @@ class TfidfVectorizer(ProcessingUnit):
     @classmethod
     # pylint: disable=W0212
     def from_path(cls, path, **shared):
-        import numpy as np
-        import scipy.sparse as sp
         from sklearn.feature_extraction.text import (
             TfidfTransformer, TfidfVectorizer as SklearnTfidfVectorizer)
 
@@ -527,17 +521,9 @@ class TfidfVectorizer(ProcessingUnit):
         vectorizer_ = vectorizer_dict["vectorizer"]
         if vectorizer_:
             vocab = vectorizer_["vocab"]
-            idf_diag_data = vectorizer_["idf_diag"]
-            idf_diag_data = np.array(idf_diag_data)
-
-            idf_diag_shape = (len(idf_diag_data), len(idf_diag_data))
-            row = list(range(idf_diag_shape[0]))
-            col = list(range(idf_diag_shape[0]))
-            idf_diag = sp.csr_matrix(
-                (idf_diag_data, (row, col)), shape=idf_diag_shape)
 
             tfidf_transformer = TfidfTransformer()
-            tfidf_transformer._idf_diag = idf_diag
+            _set_tfidf_idf(tfidf_transformer, vectorizer_["idf_diag"])
 
             vectorizer_ = SklearnTfidfVectorizer(
                 tokenizer=lambda x: tokenize_light(x, vectorizer._language))
@@ -547,6 +533,22 @@ class TfidfVectorizer(ProcessingUnit):
 
         vectorizer._tfidf_vectorizer = vectorizer_
         return vectorizer
+
+
+def _set_tfidf_idf(tfidf_transformer, idf):
+    """Set the idf weights of a sklearn TfidfTransformer, for any version
+
+    scikit-learn < 1.5 stores them in a private ``_idf_diag`` sparse matrix
+    behind an ``idf_`` property setter; newer versions store ``idf_`` as an
+    array. Assigning ``idf_`` works with both. ``n_features_in_`` is kept in
+    sync so that newer versions accept inputs of the new size, and so that
+    ``check_is_fitted`` sees the transformer as fitted.
+    """
+    import numpy as np
+
+    idf = np.asarray(idf, dtype=np.float64)
+    tfidf_transformer.idf_ = idf
+    tfidf_transformer.n_features_in_ = idf.shape[0]
 
 
 @ProcessingUnit.register("cooccurrence_vectorizer")
